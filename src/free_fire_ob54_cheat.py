@@ -41,11 +41,11 @@ class FreeFireOB54Cheat:
         process_id = self.get_process_id(PROCESS_NAME)
         if not process_id:
             raise Exception("Free Fire process not found.")
-        
+
         self.process_handle = ctypes.windll.kernel32.OpenProcess(0x1F0FFF, False, process_id)
         if not self.process_handle:
             raise Exception("Failed to open process.")
-        
+
         # Get module base address
         self.module_base = self.get_module_base_address(process_id, MODULE_NAME)
 
@@ -60,7 +60,7 @@ class FreeFireOB54Cheat:
                     processes.append(pid)
             except:
                 pass
-        
+
         for pid in processes:
             try:
                 hProcess = ctypes.windll.kernel32.OpenProcess(0x1000, False, pid)
@@ -80,7 +80,7 @@ class FreeFireOB54Cheat:
         modules = []
         for _ in range(100):
             modules.append(ctypes.c_ulong())
-        
+
         bytes_read = ctypes.c_ulong()
         ctypes.windll.psapi.EnumProcessModulesEx(
             ctypes.windll.kernel32.OpenProcess(0x1000, False, process_id),
@@ -89,7 +89,7 @@ class FreeFireOB54Cheat:
             ctypes.byref(bytes_read),
             3
         )
-        
+
         for module in modules:
             if module.value == 0:
                 continue
