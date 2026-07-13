@@ -4,7 +4,14 @@ import math
 from threading import Thread
 
 # Memory addresses and offsets for Free Fire OB54
-PROCESS_NAME = "FreeFire.exe"
+PROCESS_NAMES = [
+    "HD-Player.exe",      # BlueStacks / MSI App Player
+    "dnplayer.exe",       # LDPlayer
+    "MEmu.exe",           # MEmu
+    "Nox.exe",            # NoxPlayer
+    "SmartGaGa.exe",      # SmartGaGa
+    "aow_exe.exe"         # GameLoop
+]
 MODULE_NAME = "GameAssembly.dll"
 OFFSET_ESP_BOX = 0x123456
 OFFSET_ESP_LINE = 0x123457
