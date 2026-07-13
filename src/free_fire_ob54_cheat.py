@@ -4,7 +4,7 @@ import math
 from threading import Thread
 
 # Memory addresses and offsets for Free Fire OB54
-PROCESS_NAMES = [
+PROCESS_NAME = [
     "HD-Player.exe",      # BlueStacks / MSI App Player
     "dnplayer.exe",       # LDPlayer
     "MEmu.exe",           # MEmu
