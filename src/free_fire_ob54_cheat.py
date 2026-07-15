@@ -16,11 +16,15 @@ PROCESS_NAMES = [
 MODULE_NAME = "GameAssembly.dll"
 
 # Atenção: Substitua os offsets temporários abaixo pelos offsets reais da OB54!
-OFFSET_ESP_BOX = 0x123456
-OFFSET_ESP_LINE = 0x123457
-OFFSET_ESP_NAME = 0x123458
-OFFSET_ESP_DISTANCE = 0x123459
-OFFSET_ESP_LIFE = 0x12345A
+LOCAL_ROOT = 0x0
+LOCAL_PELVIS = 0x2
+LOCAL_NECK = 0x5
+LOCAL_HEAD = 0x8
+OFFSET_LOCAL_PLAYER = 0xABFF3C0
+OFFSET_PLAYER_MODEL = 0x1A8
+OFFSET_BONE_MATRIX = 0x2C
+OFFSET_ESP_COLOR = 0x12345E
+OFFSET_ESP_SIZE = 0x12345F
 OFFSET_COMBAT_FOV = 0x12345B
 OFFSET_COMBAT_AIMBOT = Head
 OFFSET_COMBAT_SMOOTH = 0x12345D
@@ -40,6 +44,8 @@ class FreeFireOB54Cheat:
         self.esp_name = False
         self.esp_distance = False
         self.esp_life = False
+        self.esp_color = 0xFFFFFF
+        self.esp_size = 1
         self.combat_fov = 0
         self.combat_aimbot = False
         self.combat_smooth = 0
@@ -152,11 +158,22 @@ class FreeFireOB54Cheat:
         self.esp_enabled = not self.esp_enabled
         state = 1 if self.esp_enabled else 0
         print(f"[*] Definindo estado do ESP para: {state}")
-        self.write_memory(self.module_base + OFFSET_ESP_BOX, state)
-        self.write_memory(self.module_base + OFFSET_ESP_LINE, state)
-        self.write_memory(self.module_base + OFFSET_ESP_NAME, state)
-        self.write_memory(self.module_base + OFFSET_ESP_DISTANCE, state)
-        self.write_memory(self.module_base + OFFSET_ESP_LIFE, state)
+        self.write_memory(self.module_base + LOCAL_ROOT, state)
+        self.write_memory(self.module_base + LOCAL_PELVIS, state)
+        self.write_memory(self.module_base + LOCAL_NECK, state)
+        self.write_memory(self.module_base + LOCAL_HEAD, state)
+
+    def set_esp_color(self, color):
+        if not self.module_base:
+            return
+        self.esp_color = color
+        self.write_memory(self.module_base + OFFSET_ESP_COLOR, color)
+
+    def set_esp_size(self, size):
+        if not self.module_base:
+            return
+        self.esp_size = size
+        self.write_memory(self.module_base + OFFSET_ESP_SIZE, size)
 
     def set_combat_fov(self, value):
         if not self.module_base:
@@ -186,7 +203,12 @@ class FreeFireOB54Cheat:
             time.sleep(0.5)
             if self.process_handle and self.module_base:
                 if self.esp_enabled:
-                    self.read_memory(self.module_base + OFFSET_ESP_BOX)
+                    self.read_memory(self.module_base + LOCAL_ROOT)
+                    self.read_memory(self.module_base + LOCAL_PELVIS)
+                    self.read_memory(self.module_base + LOCAL_NECK)
+                    self.read_memory(self.module_base + LOCAL_HEAD)
+                    self.read_memory(self.module_base + OFFSET_ESP_COLOR)
+                    self.read_memory(self.module_base + OFFSET_ESP_SIZE)
                 if self.combat_aimbot:
                     self.read_memory(self.module_base + OFFSET_COMBAT_AIMBOT)
 
