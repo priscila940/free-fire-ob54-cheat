@@ -152,16 +152,15 @@ class FreeFireOB54Cheat:
             ctypes.byref(bytes_written)
         )
 
-    def toggle_esp(self):
-        if not self.module_base:
-            return
+        def toggle_esp(self):
+        # Altera apenas o estado lógico (True/False) no Python de forma segura
         self.esp_enabled = not self.esp_enabled
         state = 1 if self.esp_enabled else 0
-        print(f"[*] Definindo estado do ESP para: {state}")
-        self.write_memory(self.module_base + LOCAL_ROOT, state)
-        self.write_memory(self.module_base + LOCAL_PELVIS, state)
-        self.write_memory(self.module_base + LOCAL_NECK, state)
-        self.write_memory(self.module_base + LOCAL_HEAD, state)
+        print(f"[*] Estado do ESP alterado localmente para: {state}")
+        
+        # REMOVIDOS: Os comandos de "write_memory" com LOCAL_ROOT, LOCAL_PELVIS, etc.
+        # Esses índices não são endereços válidos para escrita direta na DLL e causavam o travamento.
+
 
     def set_esp_color(self, color):
         if not self.module_base:
