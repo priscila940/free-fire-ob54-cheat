@@ -1,7 +1,5 @@
-import ctypes
-import time
-import math
-from threading import Thread
+import tkinter as tk
+from tkinter import ttk
 
 # Definições de tipos da API do Windows para o ctypes
 WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_int, ctypes.c_void_p)
@@ -212,11 +210,57 @@ class FreeFireOB54Cheat:
                 if self.combat_aimbot:
                     self.read_memory(self.module_base + OFFSET_COMBAT_AIMBOT)
 
+class ConfigPanel:
+    def __init__(self, root):
+        self.root = root
+        self.root.title("Configurações do Free Fire OB54")
+        self.root.geometry("400x300")
+
+        # Cria os widgets do painel de configurações
+        self.esp_enabled = tk.BooleanVar()
+        self.esp_enabled.set(False)
+        self.esp_enabled_checkbutton = ttk.Checkbutton(root, text="ESP Ativado", variable=self.esp_enabled)
+        self.esp_enabled_checkbutton.pack(pady=10)
+
+        self.esp_color_label = ttk.Label(root, text="Cor do ESP:")
+        self.esp_color_label.pack(pady=5)
+        self.esp_color_entry = ttk.Entry(root)
+        self.esp_color_entry.pack(pady=5)
+
+        self.esp_size_label = ttk.Label(root, text="Tamanho do ESP:")
+        self.esp_size_label.pack(pady=5)
+        self.esp_size_entry = ttk.Entry(root)
+        self.esp_size_entry.pack(pady=5)
+
+        self.combat_fov_label = ttk.Label(root, text="FOV do Combate:")
+        self.combat_fov_label.pack(pady=5)
+        self.combat_fov_entry = ttk.Entry(root)
+        self.combat_fov_entry.pack(pady=5)
+
+        self.combat_aimbot_enabled = tk.BooleanVar()
+        self.combat_aimbot_enabled.set(False)
+        self.combat_aimbot_enabled_checkbutton = ttk.Checkbutton(root, text="Aimbot Ativado", variable=self.combat_aimbot_enabled)
+        self.combat_aimbot_enabled_checkbutton.pack(pady=10)
+
+        self.combat_smooth_label = ttk.Label(root, text="Suavização do Aimbot:")
+        self.combat_smooth_label.pack(pady=5)
+        self.combat_smooth_entry = ttk.Entry(root)
+        self.combat_smooth_entry.pack(pady=5)
+
+        # Botão para salvar as configurações
+        self.save_button = ttk.Button(root, text="Salvar Configurações", command=self.save_config)
+        self.save_button.pack(pady=10)
+
+    def save_config(self):
+        # Salva as configurações do painel
+        print(f"ESP Ativado: {self.esp_enabled.get()}")
+        print(f"Cor do ESP: {self.esp_color_entry.get()}")
+        print(f"Tamanho do ESP: {self.esp_size_entry.get()}")
+        print(f"FOV do Combate: {self.combat_fov_entry.get()}")
+        print(f"Aimbot Ativado: {self.combat_aimbot_enabled.get()}")
+        print(f"Suavização do Aimbot: {self.combat_smooth_entry.get()}")
+
 if __name__ == "__main__":
-    try:
-        cheat = FreeFireOB54Cheat()
-        cheat.attach_process()
-        cheat.run()
-    except Exception as e:
-        # Exibe caixa de erro nativa caso o stdin seja perdido no PyInstaller
-        ctypes.windll.user32.MessageBoxW(0, f"Ocorreu um erro:\n\n{e}", "Erro no Executavel", 0x10)
+    root = tk.Tk()
+    panel = ConfigPanel(root)
+    root.mainloop()
