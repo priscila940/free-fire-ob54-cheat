@@ -1,17 +1,50 @@
 import ctypes
-import time
-import math
-from threading import Thread
 
-# Nomes dos processos dos emuladores populares
-PROCESS_NAMES = [
-    "HD-Player.exe",      # BlueStacks / MSI App Player
-    "dnplayer.exe",       # LDPlayer
-    "MEmu.exe",           # MEmu
-    "Nox.exe",            # NoxPlayer
-    "SmartGaGa.exe",      # SmartGaGa
-    "aow_exe.exe"         # GameLoop
-]
+# Definições de tipos da API do Windows para o ctypes
+WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_int, ctypes.c_pointer)
+GetWindowText = ctypes.windll.user32.GetWindowTextW
+GetWindowTextLength = ctypes.windll.user32.GetWindowTextLengthW
+IsWindowVisible = ctypes.windll.user32.IsWindowVisible
+GetWindowThreadProcessId = ctypes.windll.user32.GetWindowThreadProcessId
+
+def buscar_emulador_dinamico():
+    """
+    Percorre todas as janelas abertas no Windows para encontrar
+    um emulador ativo e retorna o PID (Process ID) dele.
+    """
+    palavras_chave = ["bluestacks", "ldplayer", "memu", "nox", "smartgaga", "gameloop", "mumu"]
+    resultado = {"pid": None, "nome_janela": None}
+
+    def foreach_window(hwnd, lParam):
+        if IsWindowVisible(hwnd):
+            length = GetWindowTextLength(hwnd)
+            if length > 0:
+                buff = ctypes.create_unicode_buffer(length + 1)
+                GetWindowText(hwnd, buff, length + 1)
+                titulo_janela = buff.value.lower()
+                
+                # Verifica se o título da janela contém alguma das palavras-chave
+                for palavra in palavras_chave:
+                    if palavra in titulo_janela:
+                        pid = ctypes.c_ulong()
+                        GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+                        resultado["pid"] = pid.value
+                        resultado["nome_janela"] = buff.value
+                        return False  # Para a busca ao encontrar a primeira correspondência
+        return True
+
+    # Enumera as janelas chamando a função para cada uma
+    ctypes.windll.user32.EnumWindows(WNDENUMPROC(foreach_window), 0)
+    
+     return resultado["pid"], resultado["nome_janela"]
+
+# Exemplo de uso:
+pid, nome = buscar_emulador_dinamico()
+if pid:
+    print(f"[+] Emulador detectado: '{nome}' (PID: {pid})")
+else:
+    print("[-] Nenhum emulador ativo foi detectado.")
+
 
 MODULE_NAME = "GameAssembly.dll"
 
