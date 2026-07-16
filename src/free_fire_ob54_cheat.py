@@ -36,7 +36,7 @@ def buscar_emulador_dinamico():
     # Enumera as janelas chamando a função para cada uma
     ctypes.windll.user32.EnumWindows(WNDENUMPROC(foreach_window), 0)
     
-     return resultado["pid"], resultado["nome_janela"]
+    return resultado["pid"], resultado["nome_janela"]
 
 # Exemplo de uso:
 pid, nome = buscar_emulador_dinamico()
