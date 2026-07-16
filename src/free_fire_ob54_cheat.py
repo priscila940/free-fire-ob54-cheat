@@ -1,266 +1,123 @@
-import tkinter as tk
-from tkinter import ttk
+import ctypes
+import time
+import threading
+import dearpygui.dearpygui as dpg
 
-# Definições de tipos da API do Windows para o ctypes
-WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_int, ctypes.c_void_p)
-GetWindowText = ctypes.windll.user32.GetWindowTextW
-GetWindowTextLength = ctypes.windll.user32.GetWindowTextLengthW
-IsWindowVisible = ctypes.windll.user32.IsWindowVisible
-GetWindowThreadProcessId = ctypes.windll.user32.GetWindowThreadProcessId
+# Variáveis globais de controle
+MENU_ABERTO = True
+TECLA_MENU = 0x2D  # Tecla INSERT por padrão (Virtual Key Code)
+STREAM_MODE = False
 
-def buscar_emulador_dinamico():
+# Constantes do Windows para o Stream Mode
+HWND_TOPMOST = -1
+GWL_EXSTYLE = -20
+WS_EX_TOOLWINDOW = 0x00000080
+WDA_NONE = 0x00000000
+WDA_EXCLUDE = 0x00000003
+
+def aplicar_stream_mode(estado):
     """
-    Percorre todas as janelas abertas no Windows para encontrar
-    um emulador ativo e retorna o PID (Process ID) dele.
+    Ativa ou desativa a ocultação da janela em programas de gravação (OBS/Discord).
     """
-    palavras_chave = ["bluestacks", "ldplayer", "memu", "nox", "smartgaga", "gameloop", "mumu"]
-    resultado = {"pid": None, "nome_janela": None}
-
-    def foreach_window(hwnd, lParam):
-        if IsWindowVisible(hwnd):
-            length = GetWindowTextLength(hwnd)
-            if length > 0:
-                buff = ctypes.create_unicode_buffer(length + 1)
-                GetWindowText(hwnd, buff, length + 1)
-                titulo_janela = buff.value.lower()
-                
-                # Verifica se o título da janela contém alguma das palavras-chave
-                for palavra in palavras_chave:
-                    if palavra in titulo_janela:
-                        pid = ctypes.c_ulong()
-                        GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-                        resultado["pid"] = pid.value
-                        resultado["nome_janela"] = buff.value
-                        return False  # Para a busca ao encontrar a primeira correspondência
-        return True
-
-    # Enumera as janelas chamando a função para cada uma
-    ctypes.windll.user32.EnumWindows(WNDENUMPROC(foreach_window), 0)
-    
-    return resultado["pid"], resultado["nome_janela"]
-
-
-MODULE_NAME = "GameAssembly.dll"
-
-# Offsets e constantes originais informados por você
-LOCAL_ROOT = 0x0
-LOCAL_PELVIS = 0x2
-LOCAL_NECK = 0x5
-LOCAL_HEAD = 0x8
-OFFSET_LOCAL_PLAYER = 0xABFF3C0
-OFFSET_PLAYER_MODEL = 0x1A8
-OFFSET_BONE_MATRIX = 0x2C
-OFFSET_ESP_COLOR = 0x12345E
-OFFSET_ESP_SIZE = 0x12345F
-OFFSET_COMBAT_FOV = 0x12345B
-OFFSET_COMBAT_AIMBOT = LOCAL_HEAD
-OFFSET_COMBAT_SMOOTH = 0x12345D
-
-# Constantes de Acesso do Windows
-PROCESS_ALL_ACCESS = 0x1F0FFF
-PROCESS_QUERY_INFORMATION = 0x0400
-PROCESS_VM_READ = 0x0010
-
-class FreeFireOB54Cheat:
-    def __init__(self):
-        self.process_handle = None
-        self.module_base = None
-        self.esp_enabled = False
-        self.esp_box = False
-        self.esp_line = False
-        self.esp_name = False
-        self.esp_distance = False
-        self.esp_life = False
-        self.esp_color = 0xFFFFFF
-        self.esp_size = 1
-        self.combat_fov = 0
-        self.combat_aimbot = False
-        self.combat_smooth = 0
-
-    def attach_process(self):
-        print("[*] Procurando emulador ativo...")
-        
-        # Correção da busca: chama a nova busca dinâmica de janelas
-        process_id, nome_janela = buscar_emulador_dinamico()
-        
-        if not process_id:
-            raise Exception("Processo do Free Fire (Emulador) nao encontrado. Certifique-se de que o jogo está aberto.")
-
-        print(f"[+] Emulador encontrado! Janela: '{nome_janela}' | PID: {process_id}")
-        self.process_handle = ctypes.windll.kernel32.OpenProcess(PROCESS_ALL_ACCESS, False, process_id)
-        if not self.process_handle:
-            raise Exception("Falha ao abrir processo (Execute como Administrador).")
-
-        print("[*] Buscando endereço base da GameAssembly.dll...")
-        self.module_base = self.get_module_base_address(process_id, MODULE_NAME)
-        if not self.module_base:
-            print("[-] ALERTA: 'GameAssembly.dll' nao foi encontrada ainda. O emulador pode estar carregando.")
+    global STREAM_MODE
+    STREAM_MODE = estado
+    # Obtém o identificador (HWND) da janela do Dear PyGui
+    hwnd = ctypes.windll.user32.FindWindowW(None, "Painel de Configurações")
+    if hwnd:
+        if STREAM_MODE:
+            # Exclui a janela de capturas de tela e gravação
+            ctypes.windll.user32.SetWindowDisplayAffinity(hwnd, WDA_EXCLUDE)
+            print("[*] Stream Mode: ATIVADO (Invisível no OBS)")
         else:
-            print(f"[+] GameAssembly.dll encontrada no endereço: {hex(self.module_base)}")
+            # Volta ao estado normal (visível para todos)
+            ctypes.windll.user32.SetWindowDisplayAffinity(hwnd, WDA_NONE)
+            print("[*] Stream Mode: DESATIVADO")
 
-    def get_module_base_address(self, process_id, module_name):
-        hProcess = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, False, process_id)
-        if not hProcess:
-            return None
+def monitorar_teclado():
+    """
+    Roda em segundo plano monitorando a tecla configurada para abrir/fechar o menu.
+    """
+    global MENU_ABERTO, TECLA_MENU
+    while True:
+        # GetAsyncKeyState detecta se a tecla está pressionada no Windows globalmente
+        if ctypes.windll.user32.GetAsyncKeyState(TECLA_MENU) & 1:
+            MENU_ABERTO = not MENU_ABERTO
+            if MENU_ABERTO:
+                dpg.show_item("janela_principal")
+            else:
+                dpg.hide_item("janela_principal")
+        time.sleep(0.1)
 
-        modules = (ctypes.c_void_p * 1024)()
-        cbNeeded = ctypes.c_ulong()
+# Inicializa o Dear PyGui
+dpg.create_context()
+
+# Configuração visual do Menu
+with dpg.window(label="Painel de Controle", width=450, height=350, no_collapse=True, tag="janela_principal"):
+    
+    # Barra de abas
+    with dpg.tab_bar():
         
-        if ctypes.windll.psapi.EnumProcessModulesEx(hProcess, ctypes.byref(modules), ctypes.sizeof(modules), ctypes.byref(cbNeeded), 0x03):
-            number_of_modules = int(cbNeeded.value / ctypes.sizeof(ctypes.c_void_p))
+        # ABA 1: COMBATE
+        with dpg.tab(label="Combate"):
+            dpg.add_text("Configurações de Combate")
+            dpg.add_checkbox(label="Ativar Aimbot", default_value=False)
+            dpg.add_slider_float(label="Aimbot FOV", default_value=50.0, min_value=0.0, max_value=180.0)
+            dpg.add_slider_int(label="Suavização (Smooth)", default_value=5, min_value=1, max_value=20)
             
-            for i in range(number_of_modules):
-                module_addr = modules[i]
-                if not module_addr:
-                    continue
-                buffer = ctypes.create_string_buffer(256)
-                ctypes.windll.psapi.GetModuleFileNameExA(hProcess, module_addr, buffer, 256)
-                decoded_path = buffer.value.decode('utf-8', errors='ignore')
-                
-                if module_name.lower() in decoded_path.lower():
-                    ctypes.windll.kernel32.CloseHandle(hProcess)
-                    return module_addr
-                    
-        ctypes.windll.kernel32.CloseHandle(hProcess)
-        return None
+        # ABA 2: ESP
+        with dpg.tab(label="ESP"):
+            dpg.add_text("Configurações de Visualização (ESP)")
+            dpg.add_checkbox(label="Ativar ESP", default_value=False)
+            dpg.add_checkbox(label="Desenhar Box (Caixa)", default_value=False)
+            dpg.add_checkbox(label="Desenhar Linhas (Lines)", default_value=False)
+            dpg.add_color_edit(label="Cor do ESP", default_value=[255, 255, 255, 255])
 
-    def read_memory(self, address):
-        if not self.process_handle:
-            return 0
-        buffer = ctypes.c_size_t()
-        bytes_read = ctypes.c_size_t()
-        ctypes.windll.kernel32.ReadProcessMemory(
-            self.process_handle,
-            ctypes.c_void_p(address),
-            ctypes.byref(buffer),
-            ctypes.sizeof(buffer),
-            ctypes.byref(bytes_read)
-        )
-        return buffer.value
+        # ABA 3: CONFIGURAÇÕES (Teclas e Stream Mode)
+        with dpg.tab(label="Configurações"):
+            dpg.add_text("Ajustes do Painel")
+            
+            # Atalho de teclado
+            dpg.add_combo(
+                label="Tecla para Abrir/Fechar", 
+                items=["INSERT", "F9", "HOME", "DELETE"], 
+                default_value="INSERT",
+                callback=lambda sender, app_data: atualizar_tecla_atalho(app_data)
+            )
+            
+            dpg.add_separator()
+            
+            # Chave Liga/Desliga do Stream Mode
+            dpg.add_checkbox(
+                label="Ativar Stream Mode (Ocultar no OBS)", 
+                default_value=False,
+                callback=lambda sender, app_data: aplicar_stream_mode(app_data)
+            )
 
-    def write_memory(self, address, value):
-        if not self.process_handle:
-            return
-        buffer = ctypes.c_size_t(value)
-        bytes_written = ctypes.c_size_t()
-        ctypes.windll.kernel32.WriteProcessMemory(
-            self.process_handle,
-            ctypes.c_void_p(address),
-            ctypes.byref(buffer),
-            ctypes.sizeof(buffer),
-            ctypes.byref(bytes_written)
-        )
+def atualizar_tecla_atalho(nome_tecla):
+    """
+    Atualiza o código da tecla com base na escolha do usuário no Combo Box.
+    """
+    global TECLA_MENU
+    mapeamento = {
+        "INSERT": 0x2D,
+        "F9": 0x78,
+        "HOME": 0x24,
+        "DELETE": 0x2E
+    }
+    TECLA_MENU = mapeamento.get(nome_tecla, 0x2D)
+    print(f"[*] Tecla de atalho alterada para: {nome_tecla}")
 
-    def toggle_esp(self):
-        # Alinhamento e indentação corrigidos com 8 espaços internos
-        self.esp_enabled = not self.esp_enabled
-        state = 1 if self.esp_enabled else 0
-        print(f"[*] Definindo estado do ESP para: {state}")
-        self.write_memory(self.module_base + LOCAL_ROOT, state)
-        self.write_memory(self.module_base + LOCAL_PELVIS, state)
-        self.write_memory(self.module_base + LOCAL_NECK, state)
-        self.write_memory(self.module_base + LOCAL_HEAD, state)
+# Configura o tamanho da janela do aplicativo e exibe
+dpg.create_viewport(title="Painel de Configurações", width=480, height=380, decorated=True)
+dpg.setup_dearpygui()
+dpg.show_viewport()
 
-    def set_esp_color(self, color):
-        if not self.module_base:
-            return
-        self.esp_color = color
-        self.write_memory(self.module_base + OFFSET_ESP_COLOR, color)
+# Inicia a thread que ouve as teclas em segundo plano
+thread_teclado = threading.Thread(target=monitorar_teclado, daemon=True)
+thread_teclado.start()
 
-    def set_esp_size(self, size):
-        if not self.module_base:
-            return
-        self.esp_size = size
-        self.write_memory(self.module_base + OFFSET_ESP_SIZE, size)
+# Loop principal de renderização da interface
+while dpg.is_dearpygui_running():
+    dpg.render_dearpygui_frame()
 
-    def set_combat_fov(self, value):
-        if not self.module_base:
-            return
-        if 0 <= value <= 500:
-            self.combat_fov = value
-            self.write_memory(self.module_base + OFFSET_COMBAT_FOV, value)
-
-    def toggle_combat_aimbot(self):
-        if not self.module_base:
-            return
-        self.combat_aimbot = not self.combat_aimbot
-        state = 1 if self.combat_aimbot else 0
-        print(f"[*] Definindo estado do Aimbot para: {state}")
-        self.write_memory(self.module_base + OFFSET_COMBAT_AIMBOT, state)
-
-    def set_combat_smooth(self, value):
-        if not self.module_base:
-            return
-        if 0 <= value <= 100:
-            self.combat_smooth = value
-            self.write_memory(self.module_base + OFFSET_COMBAT_SMOOTH, value)
-
-    def run(self):
-        print("[+] Script rodando. Aguardando comandos ou alteracoes de estado...")
-        while True:
-            time.sleep(0.5)
-            if self.process_handle and self.module_base:
-                if self.esp_enabled:
-                    self.read_memory(self.module_base + LOCAL_ROOT)
-                    self.read_memory(self.module_base + LOCAL_PELVIS)
-                    self.read_memory(self.module_base + LOCAL_NECK)
-                    self.read_memory(self.module_base + LOCAL_HEAD)
-                    self.read_memory(self.module_base + OFFSET_ESP_COLOR)
-                    self.read_memory(self.module_base + OFFSET_ESP_SIZE)
-                if self.combat_aimbot:
-                    self.read_memory(self.module_base + OFFSET_COMBAT_AIMBOT)
-
-class ConfigPanel:
-    def __init__(self, root):
-        self.root = root
-        self.root.title("Configurações do Free Fire OB54")
-        self.root.geometry("400x300")
-
-        # Cria os widgets do painel de configurações
-        self.esp_enabled = tk.BooleanVar()
-        self.esp_enabled.set(False)
-        self.esp_enabled_checkbutton = ttk.Checkbutton(root, text="ESP Ativado", variable=self.esp_enabled)
-        self.esp_enabled_checkbutton.pack(pady=10)
-
-        self.esp_color_label = ttk.Label(root, text="Cor do ESP:")
-        self.esp_color_label.pack(pady=5)
-        self.esp_color_entry = ttk.Entry(root)
-        self.esp_color_entry.pack(pady=5)
-
-        self.esp_size_label = ttk.Label(root, text="Tamanho do ESP:")
-        self.esp_size_label.pack(pady=5)
-        self.esp_size_entry = ttk.Entry(root)
-        self.esp_size_entry.pack(pady=5)
-
-        self.combat_fov_label = ttk.Label(root, text="FOV do Combate:")
-        self.combat_fov_label.pack(pady=5)
-        self.combat_fov_entry = ttk.Entry(root)
-        self.combat_fov_entry.pack(pady=5)
-
-        self.combat_aimbot_enabled = tk.BooleanVar()
-        self.combat_aimbot_enabled.set(False)
-        self.combat_aimbot_enabled_checkbutton = ttk.Checkbutton(root, text="Aimbot Ativado", variable=self.combat_aimbot_enabled)
-        self.combat_aimbot_enabled_checkbutton.pack(pady=10)
-
-        self.combat_smooth_label = ttk.Label(root, text="Suavização do Aimbot:")
-        self.combat_smooth_label.pack(pady=5)
-        self.combat_smooth_entry = ttk.Entry(root)
-        self.combat_smooth_entry.pack(pady=5)
-
-        # Botão para salvar as configurações
-        self.save_button = ttk.Button(root, text="Salvar Configurações", command=self.save_config)
-        self.save_button.pack(pady=10)
-
-    def save_config(self):
-        # Salva as configurações do painel
-        print(f"ESP Ativado: {self.esp_enabled.get()}")
-        print(f"Cor do ESP: {self.esp_color_entry.get()}")
-        print(f"Tamanho do ESP: {self.esp_size_entry.get()}")
-        print(f"FOV do Combate: {self.combat_fov_entry.get()}")
-        print(f"Aimbot Ativado: {self.combat_aimbot_enabled.get()}")
-        print(f"Suavização do Aimbot: {self.combat_smooth_entry.get()}")
-
-if __name__ == "__main__":
-    root = tk.Tk()
-    panel = ConfigPanel(root)
-    root.mainloop()
+dpg.destroy_context()
