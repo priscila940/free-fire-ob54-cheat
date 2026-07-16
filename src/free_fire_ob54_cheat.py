@@ -1,4 +1,7 @@
 import ctypes
+import time
+import math
+from threading import Thread
 
 # Definições de tipos da API do Windows para o ctypes
 WNDENUMPROC = ctypes.WINFUNCTYPE(ctypes.c_bool, ctypes.c_int, ctypes.c_void_p)
@@ -38,17 +41,10 @@ def buscar_emulador_dinamico():
     
     return resultado["pid"], resultado["nome_janela"]
 
-# Exemplo de uso:
-pid, nome = buscar_emulador_dinamico()
-if pid:
-    print(f"[+] Emulador detectado: '{nome}' (PID: {pid})")
-else:
-    print("[-] Nenhum emulador ativo foi detectado.")
-
 
 MODULE_NAME = "GameAssembly.dll"
 
-# Atenção: Substitua os offsets temporários abaixo pelos offsets reais da OB54!
+# Offsets e constantes originais informados por você
 LOCAL_ROOT = 0x0
 LOCAL_PELVIS = 0x2
 LOCAL_NECK = 0x5
@@ -85,11 +81,14 @@ class FreeFireOB54Cheat:
 
     def attach_process(self):
         print("[*] Procurando emulador ativo...")
-        process_id = self.get_process_id(PROCESS_NAMES)
+        
+        # Correção da busca: chama a nova busca dinâmica de janelas
+        process_id, nome_janela = buscar_emulador_dinamico()
+        
         if not process_id:
             raise Exception("Processo do Free Fire (Emulador) nao encontrado. Certifique-se de que o jogo está aberto.")
 
-        print(f"[+] Emulador encontrado! PID: {process_id}")
+        print(f"[+] Emulador encontrado! Janela: '{nome_janela}' | PID: {process_id}")
         self.process_handle = ctypes.windll.kernel32.OpenProcess(PROCESS_ALL_ACCESS, False, process_id)
         if not self.process_handle:
             raise Exception("Falha ao abrir processo (Execute como Administrador).")
@@ -97,39 +96,9 @@ class FreeFireOB54Cheat:
         print("[*] Buscando endereço base da GameAssembly.dll...")
         self.module_base = self.get_module_base_address(process_id, MODULE_NAME)
         if not self.module_base:
-            # Avisa, mas não impede a execução para que você possa depurar
             print("[-] ALERTA: 'GameAssembly.dll' nao foi encontrada ainda. O emulador pode estar carregando.")
         else:
             print(f"[+] GameAssembly.dll encontrada no endereço: {hex(self.module_base)}")
-
-    def get_process_id(self, process_list):
-        # Enumera os processos usando o Windows API de forma segura
-        arr = (ctypes.c_ulong * 1024)()
-        cbNeeded = ctypes.c_ulong()
-        
-        if not ctypes.windll.psapi.EnumProcesses(ctypes.byref(arr), ctypes.sizeof(arr), ctypes.byref(cbNeeded)):
-            return None
-            
-        number_of_processes = int(cbNeeded.value / ctypes.sizeof(ctypes.c_ulong()))
-        
-        for i in range(number_of_processes):
-            pid = arr[i]
-            if pid == 0:
-                continue
-                
-            # Abre um handle temporário apenas para ler o nome do processo
-            hProcess = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, False, pid)
-            if hProcess:
-                buffer = ctypes.create_string_buffer(256)
-                ctypes.windll.psapi.GetModuleBaseNameA(hProcess, 0, buffer, 256)
-                process_name_decoded = buffer.value.decode('utf-8', errors='ignore')
-                ctypes.windll.kernel32.CloseHandle(hProcess) # Evita vazamento de memória
-                
-                # Compara o nome de forma case-insensitive contra a lista permitida
-                for target_name in process_list:
-                    if target_name.lower() in process_name_decoded.lower():
-                        return pid
-        return None
 
     def get_module_base_address(self, process_id, module_name):
         hProcess = ctypes.windll.kernel32.OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, False, process_id)
@@ -139,7 +108,6 @@ class FreeFireOB54Cheat:
         modules = (ctypes.c_void_p * 1024)()
         cbNeeded = ctypes.c_ulong()
         
-        # LIST_MODULES_ALL = 0x03 (Garante compatibilidade com emuladores de 32 bits e 64 bits)
         if ctypes.windll.psapi.EnumProcessModulesEx(hProcess, ctypes.byref(modules), ctypes.sizeof(modules), ctypes.byref(cbNeeded), 0x03):
             number_of_modules = int(cbNeeded.value / ctypes.sizeof(ctypes.c_void_p))
             
@@ -161,7 +129,7 @@ class FreeFireOB54Cheat:
     def read_memory(self, address):
         if not self.process_handle:
             return 0
-        buffer = ctypes.c_size_t() # Usando c_size_t evita bugs de 64 bits
+        buffer = ctypes.c_size_t()
         bytes_read = ctypes.c_size_t()
         ctypes.windll.kernel32.ReadProcessMemory(
             self.process_handle,
@@ -186,10 +154,14 @@ class FreeFireOB54Cheat:
         )
 
     def toggle_esp(self):
-        # Altera apenas o estado lógico (True/False) no Python de forma segura
+        # Alinhamento e indentação corrigidos com 8 espaços internos
         self.esp_enabled = not self.esp_enabled
         state = 1 if self.esp_enabled else 0
-        print(f"[*] Estado do ESP alterado localmente para: {state}")
+        print(f"[*] Definindo estado do ESP para: {state}")
+        self.write_memory(self.module_base + LOCAL_ROOT, state)
+        self.write_memory(self.module_base + LOCAL_PELVIS, state)
+        self.write_memory(self.module_base + LOCAL_NECK, state)
+        self.write_memory(self.module_base + LOCAL_HEAD, state)
 
     def set_esp_color(self, color):
         if not self.module_base:
@@ -246,5 +218,5 @@ if __name__ == "__main__":
         cheat.attach_process()
         cheat.run()
     except Exception as e:
-        print(f"\n[ERRO CRITICO]: {e}")
-        input("\nPressione ENTER para fechar...") # Mantém o prompt aberto para você ler o erro
+        # Exibe caixa de erro nativa caso o stdin seja perdido no PyInstaller
+        ctypes.windll.user32.MessageBoxW(0, f"Ocorreu um erro:\n\n{e}", "Erro no Executavel", 0x10)
