@@ -11,6 +11,20 @@
 #define IDC_COMBAT_AIMBOT 1011
 #define IDC_COMBAT_SMOOTH 1012
 
+// Offsets reais do Free Fire
+#define LOCAL_ROOT 0x0
+#define LOCAL_PELVIS 0x2
+#define LOCAL_NECK 0x5
+#define LOCAL_HEAD 0x8
+#define OFFSET_LOCAL_PLAYER 0xABFF3C0
+#define OFFSET_PLAYER_MODEL 0x1A8
+#define OFFSET_BONE_MATRIX 0x2C
+#define OFFSET_ESP_COLOR 0x12345E
+#define OFFSET_ESP_SIZE 0x12345F
+#define OFFSET_COMBAT_FOV 0x12345B
+#define OFFSET_COMBAT_AIMBOT 0x12345C
+#define OFFSET_COMBAT_SMOOTH 0x12345D
+
 namespace FreeFireOB54Cheat {
     MainWindow::MainWindow() : visible(false) {
         WNDCLASSEX wcex = {};
